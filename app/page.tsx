@@ -1,145 +1,150 @@
 "use client";
 
-import Image from "next/image";
 import { useForm } from "react-hook-form";
-import { Gender } from "./constants/gender";
-import { useState } from "react";
 
-type RegistrationFormData = {
+import { useEffect, useState } from "react";
+import PrimaryButton from "./component/PrimaryButton";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { getAuthUser, User } from "./service/authService";
+
+type LoginFormData = {
   email: string;
   password: string;
-  name: string;
-  gender: Gender;
 };
 
 //partial as optional fields
-type Validation = Partial<Record<keyof RegistrationFormData, string>>;
-type RegistrationStatus = { registrationStatus: string };
+//data validation message return from SpringBoot LoginRequest.class(DTO Folder) GlobalExceptionHandler.class (Exception Folder)
+type Validation = Partial<Record<keyof LoginFormData, string>>;
 
 export default function Home() {
-  const [successMessage, setSuccessMessage] = useState<string>("");
+  const [loginResult, setLoginResult] = useState<string>("");
+  const [isChecking, setIsChecking] = useState(true);
+  const router = useRouter();
+
+  useEffect(() => {
+    async function fetchAuthUser() {
+      const authUser = await getAuthUser();
+
+      if (authUser) {
+        router.replace("/dashboard");
+        return;
+      }
+
+      setIsChecking(false);
+    }
+
+    fetchAuthUser();
+  }, [router]);
 
   const {
     register,
     handleSubmit,
     setError,
-    formState: { errors, isSubmitSuccessful },
-  } = useForm<RegistrationFormData>();
+    formState: { errors },
+  } = useForm<LoginFormData>();
+
+  const onSubmit = async (payload: LoginFormData) => {
+    const res = await fetch("http://localhost:8080/api/users/login", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (res.status === 401) {
+      const { message } = await res.json();
+      setLoginResult(message);
+      return;
+    }
+
+    if (!res.ok) {
+      const body = (await res.json()) as Validation;
+      Object.entries(body).forEach(([field, message]) => {
+        setError(field as keyof LoginFormData, {
+          type: "server",
+          message,
+        });
+      });
+      return;
+    }
+
+    //store the credentials in localStorage
+    const data = (await res.json()) as User;
+    localStorage.setItem("auth", JSON.stringify(data));
+    router.push("/dashboard");
+  };
+
+  useEffect(() => {
+    //when login success
+    const raw = localStorage.getItem("auth");
+    if (!raw) return;
+
+    const user = JSON.parse(raw) as { token?: string };
+    if (user.token) {
+      router.replace("/dashboard");
+    }
+  }, [router]);
+
+  if (isChecking) {
+    return;
+  }
 
   return (
-    <div className="h-dvh w-full flex flex-col justify-center items-center">
-      <form
-        id="registration-form"
-        onSubmit={handleSubmit(async (payload) => {
-          const res = await fetch("http://localhost:8080/api/users/register", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify(payload),
-          });
-
-          if (res.status === 409) {
-            const body = (await res.json()) as RegistrationStatus;
-            setError("email", {
-              type: "server",
-              message: body.registrationStatus ?? "Account already exist",
-            });
-            return;
-          }
-
-          if (!res.ok) {
-            const body = (await res.json()) as Validation;
-            Object.entries(body).forEach(([field, message]) => {
-              setError(field as keyof RegistrationFormData, {
-                type: "server",
-                message,
-              });
-            });
-            return;
-          }
-
-          const body = (await res.json()) as RegistrationStatus;
-          const form =
-            document.querySelector<HTMLFormElement>("#registration-form");
-          if (!form) return;
-          form.reset();
-          setSuccessMessage(
-            body.registrationStatus || "Account Registration Successful",
-          );
-        })}
-        className="flex flex-col gap-3"
-      >
-        {isSubmitSuccessful && (
-          <h3 className="text-2xl text-green-500 font-bold">
-            {successMessage}
-          </h3>
-        )}
-        <div className="flex flex-col">
-          <label htmlFor="email">Email:</label>
-          <input
-            id="email"
-            type="email"
-            {...register("email", { required: true })}
-            className="border"
-          />
-          {errors.email && (
-            <p className="text-red-500 font-semibold">{errors.email.message}</p>
+    <div className="h-dvh w-full flex flex-col justify-center items-center gap-10">
+      <h1>Wafuseph CMS</h1>
+      <main className="w-100">
+        <form
+          id="registration-form"
+          onSubmit={handleSubmit(onSubmit)}
+          className="flex flex-col gap-3"
+        >
+          {loginResult && (
+            <h3 className="text-2xl text-red-500 font-bold font-sans">
+              {loginResult}
+            </h3>
           )}
-        </div>
 
-        <div className="flex flex-col">
-          <label htmlFor="password">Password:</label>
-          <input
-            id="password"
-            type="password"
-            {...register("password", { required: true })}
-            className="border"
-          />
-          {errors.password && (
-            <p className="text-red-500 font-semibold">
-              {errors.password.message}
-            </p>
-          )}
-        </div>
+          <div className="flex flex-col">
+            <label htmlFor="email">Email:</label>
+            <input
+              id="email"
+              type="email"
+              {...register("email")}
+              className="border"
+            />
+            {errors.email && (
+              <p className="text-red-500 font-semibold">
+                {errors.email.message}
+              </p>
+            )}
+          </div>
 
-        <div className="flex flex-col">
-          <label htmlFor="name">Name:</label>
-          <input
-            id="name"
-            type="text"
-            {...register("name", { required: true })}
-            className="border"
-          />
-          {errors.name && (
-            <p className="text-red-500 font-semibold">{errors.name.message}</p>
-          )}
-        </div>
+          <div className="flex flex-col">
+            <label htmlFor="password">Password:</label>
+            <input
+              id="password"
+              type="password"
+              {...register("password")}
+              className="border"
+            />
+            {errors.password && (
+              <p className="text-red-500 font-semibold">
+                {errors.password.message}
+              </p>
+            )}
+          </div>
 
-        <div className="flex flex-col">
-          <label htmlFor="Gender">Gender:</label>
-          <select
-            id="gender"
-            {...register("gender", { required: true })}
-            className="border"
-          >
-            {Object.values(Gender).map((gender) => {
-              return (
-                <option key={gender} value={gender}>
-                  {gender}
-                </option>
-              );
-            })}
-          </select>
-          {errors.gender && (
-            <p className="text-red-500 font-semibold">
-              {errors.gender.message}
-            </p>
-          )}
-        </div>
+          <Link href="/register">
+            <span className="text-sm underline text-blue-500">
+              Register account
+            </span>
+          </Link>
 
-        <input type="submit" className="border p-3" />
-      </form>
+          <PrimaryButton buttonType="submit" label="Login" />
+        </form>
+      </main>
     </div>
   );
 }
