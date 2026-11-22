@@ -81,7 +81,7 @@ export default function Home() {
     const raw = localStorage.getItem("auth");
     if (!raw) return;
 
-    const user = JSON.parse(raw) as { token?: string };
+    const user = JSON.parse(raw) as User;
     if (user.token) {
       router.replace("/dashboard");
     }

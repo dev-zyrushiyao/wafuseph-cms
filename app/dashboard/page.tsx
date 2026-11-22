@@ -5,6 +5,8 @@ import PrimaryButton from "../component/PrimaryButton";
 import { getAuthUser, logoutUser, User } from "../service/authService";
 import { useRouter } from "next/navigation";
 
+import AnnouncementEditor from "../component/AnnouncementEditor";
+
 export default function Dashboard() {
   const [user, setUser] = useState<User | null>(null);
   const [isChecking, setIsChecking] = useState(true);
@@ -19,19 +21,19 @@ export default function Dashboard() {
         return;
       }
 
-      setIsChecking(false);
       setUser(authUser);
+      setIsChecking(false);
     }
     fetchAuthUser();
   }, [router]);
 
-  if (isChecking || !user) {
-    return null; // or a simple loading spinner
-  }
-
   function handleLogout(): void {
     logoutUser();
     router.replace("/");
+  }
+
+  if (isChecking || !user) {
+    return null; // or a simple loading spinner
   }
 
   return (
@@ -43,7 +45,10 @@ export default function Dashboard() {
           <div className="h-1/2">
             <h6>Menu:</h6>
             <ul className="flex flex-col gap-5">
-              <li className="text-4xl">Announcements</li>
+              {user.role === "ADMIN" && (
+                <li className="text-4xl">Announcements</li>
+              )}
+
               <li className="text-4xl">Message</li>
             </ul>
           </div>
@@ -54,7 +59,11 @@ export default function Dashboard() {
             onClick={handleLogout}
           />
         </div>
-        <div className="w-full h-full bg-gray-200"></div>
+        <div className="w-full h-full bg-gray-200">
+          <div>
+            <AnnouncementEditor />
+          </div>
+        </div>
       </main>
     </div>
   );
