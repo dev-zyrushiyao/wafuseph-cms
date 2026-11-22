@@ -1,7 +1,7 @@
 export type AnnouncementProp = {
   title: string;
-  subTitle: string;
+  subTitle: string | null;
   content: string;
   slug: string;
-  imageUrl?: string;
+  imageUrl: string | null;
 };

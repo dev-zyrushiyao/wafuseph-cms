@@ -5,7 +5,11 @@ import { useForm } from "react-hook-form";
 import { AnnouncementProp } from "../service/announcement";
 import { getAuthUser, User } from "../service/authService";
 import { useRouter } from "next/navigation";
-import { slugify } from "../service/utils";
+import { MAX_FILE_SIZE, slugify } from "../service/utils";
+import PrimaryButton from "./PrimaryButton";
+import { allowedFileTypes } from "../service/file";
+import FilePreview from "./FilePreview";
+import { toast } from "sonner";
 
 //Jodit Richtext editor import
 const JoditEditor = dynamic(() => import("jodit-react"), { ssr: false });
@@ -15,6 +19,7 @@ type Validation = Partial<Record<keyof AnnouncementProp, string>>;
 export default function AnnouncementEditor() {
   const [user, setUser] = useState<User | null>(null);
   const [isChecking, setIsChecking] = useState<boolean>(true);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
   const router = useRouter();
 
@@ -50,53 +55,90 @@ export default function AnnouncementEditor() {
   });
 
   const onSubmit = async (payload: AnnouncementProp) => {
-    //added a slug before it send to API
+    const loadingToastId: string = "loading-toast";
+
+    //added a slug before it send to API - it can be sent to API without the Image url
     payload.slug = slugify(payload.title);
+    payload.subTitle = payload.subTitle?.trim() || null;
+    payload.content = content; // content is a state separate from the useForm
+
+    //toast execute loading state
+    toast.loading("loading...", { id: loadingToastId });
+
+    //create a new form with payload(react-form-hook) with key of 'announcementData' and file(state) vales in it with key of 'file' to SpringBoot controller @RequestPart().
+    const formData = new FormData();
+    formData.append(
+      "announcementData",
+      new Blob([JSON.stringify(payload)], { type: "application/json" }),
+    );
+    if (selectedFile) {
+      formData.append("file", selectedFile);
+    }
 
     const res = await fetch(
       "http://localhost:8080/api/admin/announcement/post",
       {
         method: "POST",
         headers: {
-          "Content-Type": "application/json",
+          // "Content-Type": "application/json",
+          // "Content-Type": "multipart/form-data",
           Authorization: `Bearer ${user?.token}`,
         },
-        body: JSON.stringify(payload),
+        // body: JSON.stringify(payload),
+        body: formData,
       },
     );
 
     if (res.status === 400) {
       const { message } = await res.json();
       //   setLoginResult(message);
-      setError("title" as keyof AnnouncementProp, {
+      setError("title" as keyof Validation, {
         type: "server",
         message: `Error: Missing input detected - value of ${message}: `,
       });
+
+      toast.dismiss(loadingToastId);
+      toast.error(
+        `Error 400: ${message} Bad Request / Missing Input / Unsatisfied Input Data`,
+      );
 
       return;
     }
 
     if (res.status === 403) {
       const { message } = await res.json();
-      //   setLoginResult(message);
-      console.log("Error 401: Announcement post Failed - UNAUTHORIZED");
+
+      toast.dismiss(loadingToastId);
+      toast.error(`Error 403: ${message} Access Denied: Unauthorized Access`);
       return;
     }
 
+    //validation
     if (res.status === 409) {
       const { message } = await res.json();
-      //   setLoginResult(message);
-      setError("title" as keyof AnnouncementProp, {
+      setError("title" as keyof Validation, {
         type: "server",
         message: `${message}: Duplicate title/slug detected`,
       });
 
+      toast.dismiss(loadingToastId);
+      toast.error(`Error 409: ${message} Duplicate Data/Invalid input`);
+
       return;
     }
 
+    if (res.status === 500) {
+      const { message } = await res.json();
+
+      toast.dismiss(loadingToastId);
+      toast.error(`Error 500: Internal Server Error`);
+
+      return;
+    }
+
+    //form validation
     if (!res.ok) {
       const body = (await res.json()) as Validation;
-
       Object.entries(body).forEach(([field, message]) => {
         setError(field as keyof AnnouncementProp, {
           type: "server",
@@ -104,19 +146,27 @@ export default function AnnouncementEditor() {
         });
       });
 
+      toast.dismiss(loadingToastId);
       return;
     }
 
     //post success message
-    console.log("Announcement post success");
-    //react-form-hook reset
+    toast.dismiss(loadingToastId);
+    toast.success("Announcement post success");
+    //react-form-hook reset and the state where some values are stored
     reset();
-    setContent("<p></p>");
+    setContent("");
+    setSelectedFile(null);
   };
+
+  //load white canvass; prevent from loading the JSX until It get the User
+  if (isChecking || !user) {
+    return null;
+  }
 
   return (
     <div className="flex flex-col gap-10 w-1/2 h-100">
-      <form onSubmit={handleSubmit(onSubmit)}>
+      <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-5">
         <div>
           <label htmlFor="title">Title</label>
           <input {...register("title")} id="title" name="title" type="text" />
@@ -125,7 +175,9 @@ export default function AnnouncementEditor() {
           </p>
         </div>
         <div>
-          <label htmlFor="subTitle">Subtitle</label>
+          <label htmlFor="subTitle">
+            Subtitle <span className="text-gray-400">(Optional)</span>
+          </label>
           <input
             {...register("subTitle")}
             id="subTitle"
@@ -136,25 +188,69 @@ export default function AnnouncementEditor() {
             {errors.subTitle?.message}
           </p>
         </div>
-        <div>
+
+        {/* content is added on the post method (onSubmit) using the values of content state */}
+        {/* <div className="visible">
           <label htmlFor="content">Content</label>
           <input
             {...register("content")}
             id="content"
             name="content"
             type="text"
-            value={content}
+            value={content}     
             readOnly
           />
           <p role="alert" className="text-red-500 font-semibold">
             {errors.content?.message}
           </p>
+        </div> */}
+        <div>
+          <label htmlFor="image">Headline Photo</label>
+          <div className="wrapper h-20 ">
+            <label className="h-full w-full bg-green-200 flex flex-col justify-center items-center cursor-pointer">
+              {selectedFile !== null && selectedFile.name
+                ? selectedFile.name.length > 99
+                  ? `${selectedFile.name.slice(0, 99)}...`
+                  : `Change Photo`
+                : "Upload a photo"}
+              <span>
+                <input
+                  type="file"
+                  className="h-25 bg-yellow-50  hidden"
+                  accept={allowedFileTypes.join(",")} //["image/png", "image/jpeg", "image/webp"] => "image/png,image/jpeg,image/webp"
+                  onChange={(e) => {
+                    const targetFile = e.currentTarget.files?.[0];
+
+                    if (!targetFile) {
+                      setSelectedFile(null);
+                      return;
+                    }
+
+                    if (targetFile.size > MAX_FILE_SIZE) {
+                      alert("File must be 10 MB or smaller.");
+                      e.target.value = "";
+                      return;
+                    }
+
+                    setSelectedFile(targetFile ?? null);
+                  }}
+                />
+              </span>
+            </label>
+          </div>
+          {selectedFile && <FilePreview file={selectedFile} />}
         </div>
 
-        <button type="submit">Submit</button>
-      </form>
+        <JoditEditor
+          value={content}
+          config={config}
+          onBlur={(value) => {
+            setContent(value);
+          }}
+        />
 
-      <JoditEditor value={content} config={config} onBlur={setContent} />
+        <PrimaryButton buttonType="submit" label="Post Announcement" />
+      </form>
     </div>
   );
 }
