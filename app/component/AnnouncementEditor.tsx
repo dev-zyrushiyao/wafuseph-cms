@@ -10,6 +10,7 @@ import PrimaryButton from "./PrimaryButton";
 import { allowedFileTypes } from "../service/file";
 import FilePreview from "./FilePreview";
 import { toast } from "sonner";
+import { useAnnouncement } from "../store/announcementStore";
 
 //Jodit Richtext editor import
 const JoditEditor = dynamic(() => import("jodit-react"), { ssr: false });
@@ -19,7 +20,11 @@ type Validation = Partial<Record<keyof AnnouncementProp, string>>;
 export default function AnnouncementEditor() {
   const [user, setUser] = useState<User | null>(null);
   const [isChecking, setIsChecking] = useState<boolean>(true);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  // const [selectedFile, setSelectedFile] = useState<File | null>(null);
+
+  //announcementStore (zustand)
+  const attachedFile = useAnnouncement((state) => state.attachedFile);
+  const setAttachedFile = useAnnouncement((state) => state.setAttachedFile);
 
   const router = useRouter();
 
@@ -71,10 +76,11 @@ export default function AnnouncementEditor() {
       "announcementData",
       new Blob([JSON.stringify(payload)], { type: "application/json" }),
     );
-    if (selectedFile) {
-      formData.append("file", selectedFile);
+    if (attachedFile) {
+      formData.append("file", attachedFile);
     }
 
+    //Accepts by SpringBoot using @RequestPart annotation
     const res = await fetch(
       "http://localhost:8080/api/admin/announcement/post",
       {
@@ -156,7 +162,7 @@ export default function AnnouncementEditor() {
     //react-form-hook reset and the state where some values are stored
     reset();
     setContent("");
-    setSelectedFile(null);
+    setAttachedFile(null);
   };
 
   //load white canvass; prevent from loading the JSX until It get the User
@@ -165,7 +171,8 @@ export default function AnnouncementEditor() {
   }
 
   return (
-    <div className="flex flex-col gap-10 w-1/2 h-100">
+    <div className="flex flex-col gap-10 h-auto lg:w-200 w-fit p-10 bg-[#eaae4e] ">
+      <h3 className="text-center">Add new announcement</h3>
       <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-5">
         <div>
           <label htmlFor="title">Title</label>
@@ -176,7 +183,7 @@ export default function AnnouncementEditor() {
         </div>
         <div>
           <label htmlFor="subTitle">
-            Subtitle <span className="text-gray-400">(Optional)</span>
+            Subtitle <span className="text-gray-600">(Optional)</span>
           </label>
           <input
             {...register("subTitle")}
@@ -208,9 +215,9 @@ export default function AnnouncementEditor() {
           <label htmlFor="image">Headline Photo</label>
           <div className="wrapper h-20 ">
             <label className="h-full w-full bg-green-200 flex flex-col justify-center items-center cursor-pointer">
-              {selectedFile !== null && selectedFile.name
-                ? selectedFile.name.length > 99
-                  ? `${selectedFile.name.slice(0, 99)}...`
+              {attachedFile !== null && attachedFile.name
+                ? attachedFile.name.length > 99
+                  ? `${attachedFile.name.slice(0, 99)}...`
                   : `Change Photo`
                 : "Upload a photo"}
               <span>
@@ -222,7 +229,7 @@ export default function AnnouncementEditor() {
                     const targetFile = e.currentTarget.files?.[0];
 
                     if (!targetFile) {
-                      setSelectedFile(null);
+                      setAttachedFile(null);
                       return;
                     }
 
@@ -232,16 +239,17 @@ export default function AnnouncementEditor() {
                       return;
                     }
 
-                    setSelectedFile(targetFile ?? null);
+                    setAttachedFile(targetFile ?? null);
                   }}
                 />
               </span>
             </label>
           </div>
-          {selectedFile && <FilePreview file={selectedFile} />}
+          {attachedFile && <FilePreview file={attachedFile} />}
         </div>
 
         <JoditEditor
+          className="[&_a]:text-blue-400 [&_a]:underline [&_ul]:list-disc [&_ol]:list-decimal [&_ul,ol]:pl-6 "
           value={content}
           config={config}
           onBlur={(value) => {
