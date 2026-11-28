@@ -10,13 +10,14 @@ import { isTokenExpired } from "../service/jwtPayload";
 
 import { MdArrowDropUp, MdKeyboardArrowRight } from "react-icons/md";
 import { MdArrowDropDown } from "react-icons/md";
+import AnnouncementList from "../component/AnnouncementList";
 
 export default function Dashboard() {
   const [user, setUser] = useState<User | null>(null);
   const [isChecking, setIsChecking] = useState(true);
 
   const [announcementToggle, setAnnouncementToggle] = useState<boolean>(false);
-  const [mode, setMode] = useState<string | null>(null);
+  const [mode, setMode] = useState<string | null>("view");
   const router = useRouter();
 
   useEffect(() => {
@@ -92,9 +93,18 @@ export default function Dashboard() {
                       >
                         <MdKeyboardArrowRight /> <span>Create post</span>
                       </li>
-                      <li className="flex flex-row items-center cursor-pointer">
+                      <li
+                        data-mode="view"
+                        className="flex flex-row items-center cursor-pointer"
+                        onClick={(e) => {
+                          const createMode = e.currentTarget.dataset.mode;
+                          if (!createMode) return;
+
+                          setMode(createMode);
+                        }}
+                      >
                         <MdKeyboardArrowRight />
-                        <span>Edit post</span>
+                        <span>View announcements</span>
                       </li>
                     </ul>
                   )}
@@ -113,6 +123,7 @@ export default function Dashboard() {
         </div>
         <div className="w-full min-h-dvh flex flex-col justify-center items-center  bg-gray-200">
           {mode === "create" && <AnnouncementEditor />}
+          {mode === "view" && <AnnouncementList />}
         </div>
       </main>
     </div>

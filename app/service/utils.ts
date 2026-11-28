@@ -13,3 +13,13 @@ export function formatFileSize(bytes: number): string {
 }
 
 export const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB in bytes
+
+export function formatDate(date: string): string {
+  const newDate = new Date(date).toLocaleDateString("en-PH", {
+    month: "numeric",
+    day: "numeric",
+    year: "numeric",
+  });
+
+  return newDate;
+}

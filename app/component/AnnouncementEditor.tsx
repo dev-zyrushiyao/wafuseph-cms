@@ -20,7 +20,6 @@ type Validation = Partial<Record<keyof AnnouncementProp, string>>;
 export default function AnnouncementEditor() {
   const [user, setUser] = useState<User | null>(null);
   const [isChecking, setIsChecking] = useState<boolean>(true);
-  // const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
   //announcementStore (zustand)
   const attachedFile = useAnnouncement((state) => state.attachedFile);
@@ -29,6 +28,8 @@ export default function AnnouncementEditor() {
   const router = useRouter();
 
   const [content, setContent] = useState<string>("<p></p>");
+
+  //jodit default
   const config = useMemo(() => ({ height: 400 }), []);
 
   useEffect(() => {
@@ -96,17 +97,32 @@ export default function AnnouncementEditor() {
     );
 
     if (res.status === 400) {
-      const { message } = await res.json();
-      //   setLoginResult(message);
-      setError("title" as keyof Validation, {
-        type: "server",
-        message: `Error: Missing input detected - value of ${message}: `,
+      const errors: Record<string, string> = await res.json();
+
+      //content is triggered via state default value because it is default by "<p></p> by Jodit and can't trigger the @NotBlank springboot annotation"
+      if (content === "<p></p>") {
+        const message = "Content is required";
+        toast.dismiss(loadingToastId);
+        toast.error(`Error 400: ${message}`);
+
+        setError("content", {
+          type: "server",
+          message,
+        });
+
+        return;
+      }
+
+      Object.entries(errors).forEach(([field, msg]) => {
+        setError(field as keyof Validation, {
+          type: "server",
+          message: msg,
+        });
       });
 
+      const combinedMessage = Object.values(errors).join(", ");
       toast.dismiss(loadingToastId);
-      toast.error(
-        `Error 400: ${message} Bad Request / Missing Input / Unsatisfied Input Data`,
-      );
+      toast.error(`Error 400: ${combinedMessage || "Invalid input"}`);
 
       return;
     }
@@ -197,20 +213,20 @@ export default function AnnouncementEditor() {
         </div>
 
         {/* content is added on the post method (onSubmit) using the values of content state */}
-        {/* <div className="visible">
+        <div className="visible">
           <label htmlFor="content">Content</label>
           <input
             {...register("content")}
             id="content"
             name="content"
             type="text"
-            value={content}     
+            value={content}
             readOnly
           />
           <p role="alert" className="text-red-500 font-semibold">
             {errors.content?.message}
           </p>
-        </div> */}
+        </div>
         <div>
           <label htmlFor="image">Headline Photo</label>
           <div className="wrapper h-20 ">
@@ -248,6 +264,9 @@ export default function AnnouncementEditor() {
           {attachedFile && <FilePreview file={attachedFile} />}
         </div>
 
+        <p role="alert" className="text-red-500 font-semibold">
+          {errors.content?.message}
+        </p>
         <JoditEditor
           className="[&_a]:text-blue-400 [&_a]:underline [&_ul]:list-disc [&_ol]:list-decimal [&_ul,ol]:pl-6 "
           value={content}
